@@ -1,0 +1,164 @@
+OmniRoam: World Wandering via Long-Horizon Panoramic Video
+Generation
+YUHENG LIU∗, University of California, Irvine, USA
+XIN LIN, University of California, San Diego, USA
+XINKE LI†, City University of Hong Kong, Hong Kong, China
+BAIHAN YANG, University of California, San Diego, USA
+CHEN WANG∗, University of Pennsylvania, USA
+KALYAN SUNKAVALLI, Adobe Research, USA
+YANNICK HOLD-GEOFFROY, Adobe Research, USA
+HAO TAN, Adobe Research, USA
+KAI ZHANG, Adobe Research, USA
+XIAOHUI XIE‡, University of California, Irvine, USA
+ZIFAN SHI‡, Adobe Research, UK
+YIWEI HU‡, Adobe Research, USA
+Preview Stage
+Refine Stage
+Input Frame/Video
+Resolution
+480 x 960
+Resolution
+720 x 1440
+Wandering Path Visualization in 
+Generated 3D Scene
+: input camera trajectory.
+Fig. 1. Two-stage Long-horizon Panoramic Scene Wandering. Starting from an input frame/video, OmniRoam first produces a coarse 480×960 preview
+with accelerated playback speed to quickly traverse the scene along the user-specified camera trajectory (left). It then upscales this video to a high-quality
+720×1440 resolution (middle), jointly improving spatial details and temporal coherence, creating an immersive exploration experience. The resulting wandering
+path is visually represented as a series of viewpoints within the 3D scene (right).
+∗Work done during an intership at Adobe.
+†Corresponding author.
+‡Equal contribution.
+Authors’ Contact Information: Yuheng Liu, University of California, Irvine, USA,
+yuhenl22@uci.edu; Xin Lin, University of California, San Diego, USA, xil321@ucsd.edu;
+Xinke Li, City University of Hong Kong, Hong Kong, China, xinkeli@cityu.edu.hk; Bai-
+han Yang, University of California, San Diego, USA, bay004@ucsd.edu; Chen Wang, Uni-
+versity of Pennsylvania, USA, cw.chenwang@outlook.com; Kalyan Sunkavalli, Adobe
+Research, USA, sunkaval@adobe.com; Yannick Hold-Geoffroy, Adobe Research, USA,
+holdgeof@adobe.com; Hao Tan, Adobe Research, USA, hatan@adobe.com; Kai Zhang,
+Adobe Research, USA, kz298@cornell.edu; Xiaohui Xie, University of California, Irvine,
+Modeling scenes using video generation models has garnered growing re-
+search interest in recent years. However, most existing approaches rely on
+perspective video models that synthesize only limited observations of a
+scene, leading to issues of completeness and global consistency. We propose
+OmniRoam, a controllable panoramic video generation framework that ex-
+ploits the rich per-frame scene coverage and inherent long-term spatial and
+temporal consistency of panoramic representation, enabling long-horizon
+scene wandering. Our framework begins with a preview stage, where a
+USA, xhx@uci.edu; Zifan Shi, Adobe Research, UK, zshi@adobe.com; Yiwei Hu, Adobe
+Research, USA, yiwhu@adobe.com.
+arXiv:2603.30045v1  [cs.CV]  31 Mar 2026
+
+2
+•
+Liu et al.
+trajectory-controlled video generation model creates a quick overview of
+the scene from a given input image or video. Then, in the refine stage, this
+video is temporally extended and spatially upsampled to produce long-range,
+high-resolution videos, thus enabling high-fidelity world wandering. To
+train our model, we introduce two panoramic video datasets that incor-
+porate both synthetic and real-world captured videos. Experiments show
+that our framework consistently outperforms state-of-the-art methods in
+terms of visual quality, controllability, and long-term scene consistency, both
+qualitatively and quantitatively. We further showcase several extensions of
+this framework, including real-time video generation and 3D reconstruction.
+Code is available at https://github.com/yuhengliu02/OmniRoam.
+CCS Concepts: • Computing methodologies →Artificial intelligence.
+Additional Key Words and Phrases: Generative models, Panoramic video
+generation, Scene generation
+1
+Introduction
+Generative models have recently achieved remarkable fidelity in
+creating visual content, such as images and videos [Feng et al. 2025;
+Zhang et al. 2025c; Zhu et al. 2025]. However, generating coherent
+visual content at scale remains a fundamental challenge, particularly
+for scene modeling. Most existing scene generation methods [Ho
+et al. 2020, 2022; Kim et al. 2024; Oh et al. 2024; Sohl-Dickstein
+et al. 2015] are grounded in perspective videos that reflect a human-
+centric viewpoint, which limits comprehensive modeling of the
+physical environment due to their limited field-of-view coverage.
+Recent autoregressive-based world models [Blattmann et al. 2023;
+Chen et al. 2024; Guo et al. 2024; Hong et al. 2025; Long et al. 2024]
+show promise for long-horizon video synthesis but often lead to
+accumulated errors and temporal drift during large camera move-
+ments [Li et al. 2025; Yu et al. 2025]. These perspective videos present
+challenges, mainly because their view-limited nature complicates
+maintaining global scene consistency across space and time.
+To address these limitations, we introduce panoramic vision as
+a foundation for large-scale scene generation. Unlike perspective
+views, panoramic representations inherently offer holistic scene cov-
+erage and global spatial memory [Lin et al. 2025a,b; Wang et al. 2025],
+providing a robust basis for maintaining long-term consistency. In
+particular, we focus on the task of panoramic video wandering, in
+which the camera explores a scene along extended trajectories. This
+task allows each frame in a video to retain global context that would
+otherwise need to be accumulated over time, offering a natural and
+explicit mechanism for preserving spatial and temporal information
+in long-term video generation. Although recent work has begun
+to adapt existing generative architectures to panoramic data [Liu
+et al. 2025; Xie et al. 2025; Xing et al. 2025; Zhang et al. 2025a], these
+efforts often treat panoramas as a direct extension of perspective
+imagery, without fully exploiting their representational advantages.
+In this work, we present OmniRoam, a controllable video gener-
+ation framework for long-horizon panoramic video synthesis (Fig-
+ure 1). We posit that effective scene modeling benefits from a global-
+to-local design: the global scene structure is first established by
+the panoramic representation, after which local details are progres-
+sively refined through increased spatial and temporal resolution,
+resulting in a scene representation that is both high-fidelity and
+globally coherent. Guided by this insight, we introduce a preview
+stage that generates a coarse overview of the scene: Given a user-
+provided input image or video and a specified camera trajectory, our
+framework produces a panoramic video at mid-level spatial resolu-
+tion with accelerated playback speed, enabling efficient navigation
+of large-scale scene layouts. In practice, thanks to the stochastic
+nature of generative models, users are able to efficiently generate
+multiple video variations and select their preferred scene config-
+uration. Building upon the selected preview, a subsequent refine
+stage operates on the generated panoramic video to synthesize the
+final high-resolution result at normal playback speed, supporting
+immersive, coherent long-horizon scene wandering.
+To train our models on a scalable dataset, we implement a panoramic
+data generation pipeline with a canonical coordinate system. We
+prepare both synthetic and real-world captured videos, providing
+accurate camera trajectories and high-fidelity visual quality. We also
+propose a novel metric, loop consistency, for evaluating long-term
+global consistency in scene generation, quantitatively demonstrat-
+ing the benefits of panoramic representations.
+Extensive experiments show our approach achieves better per-
+formance across multiple metrics, including visual quality, control-
+lability, and long-term global consistency. We further demonstrate
+extensions of our framework, including a real-time preview mode
+and a 3D Gaussian Splatting (3DGS) reconstruction pipeline built
+from generated panoramic wandering videos. The primary contri-
+butions of our work are as follows:
+• We introduce a controllable framework for long-horizon panoramic
+video generation based on a global-to-local preview–refine design,
+enabling coherent and scalable scene wandering.
+• We demonstrate that panoramic representations and our design
+offer several advantages over perspective-based methods across
+multiple metrics, and we showcase extensions and applications
+using our framework.
+• We construct a scalable panoramic video data generation pipeline
+and will release a panoramic video dataset with camera trajecto-
+ries to support large-scale scene modeling.
+• We propose a novel evaluation metric, loop consistency, to quan-
+tify long-term global spatial consistency in scene-level video gen-
+eration, quantitatively demonstrating the advantages of panoramic
+representations.
+2
+Related Work
+Perspective Video Generation. Video generation has rapidly ad-
+vanced with the advent of diffusion models [Dalal et al. 2025; Feng
+et al. 2025; Haji-Ali et al. 2025; Ho et al. 2020, 2022; Kahatapitiya
+et al. 2025; OpenAI 2024; Peebles and Xie 2023; Sohl-Dickstein et al.
+2015; Xiao et al. 2025; Zhu et al. 2025]. Recent strong models like
+Hunyuan-Video [Kong et al. 2024], CogVideoX [Yang et al. 2024],
+and Wan [Wan et al. 2025] achieve high-fidelity synthesis through
+architectural optimizations. However, maintaining long-term con-
+sistency remains difficult; standard and control-based methods often
+suffer from severe quality degradation or structural inconsistencies
+over time [Guo et al. 2024; Long et al. 2024]. While recent autore-
+gressive approaches [Huang et al. 2025; Yin et al. 2025] attempt to
+address this, perspective-based methods remain inherently confined
+to a narrow field-of-view (FoV), limiting their ability to capture

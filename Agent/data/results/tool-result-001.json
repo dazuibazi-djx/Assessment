@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "arxiv_id": "tool-result-001",
+    "title": "Tool结果测试",
+    "authors": [
+      "Alice"
+    ],
+    "abstract": "摘要",
+    "published": "2026-04-01T00:00:00+00:00",
+    "pdf_url": "https://arxiv.org/pdf/tool-result-001.pdf",
+    "source": "arXiv"
+  },
+  "content": null,
+  "summary": {
+    "arxiv_id": "tool-result-001",
+    "summary": "总结",
+    "key_points": [
+      "a"
+    ],
+    "limitations": []
+  },
+  "review": {
+    "arxiv_id": "tool-result-001",
+    "strengths": [
+      "s"
+    ],
+    "weaknesses": [
+      "w"
+    ],
+    "score": 7.0,
+    "verdict": "weak accept"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "arxiv_id": "tool-meta-001",
+  "title": "Tool元数据测试",
+  "authors": [
+    "Alice"
+  ],
+  "abstract": "摘要",
+  "published": "2026-04-01T00:00:00+00:00",
+  "pdf_url": "https://arxiv.org/pdf/tool-meta-001.pdf",
+  "source": "arXiv"
+}

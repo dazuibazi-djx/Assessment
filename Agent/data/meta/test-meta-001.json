@@ -1,0 +1,12 @@
+{
+  "arxiv_id": "test-meta-001",
+  "title": "中文标题测试",
+  "authors": [
+    "Alice",
+    "Bob"
+  ],
+  "abstract": "这是一个摘要。",
+  "published": "2026-04-01T00:00:00+00:00",
+  "pdf_url": "https://arxiv.org/pdf/test-meta-001.pdf",
+  "source": "arXiv"
+}

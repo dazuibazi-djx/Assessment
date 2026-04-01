@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "arxiv_id": "test-result-001",
+    "title": "结果保存测试",
+    "authors": [
+      "Alice"
+    ],
+    "abstract": "摘要",
+    "published": "2026-04-01T00:00:00+00:00",
+    "pdf_url": "https://arxiv.org/pdf/test-result-001.pdf",
+    "source": "arXiv"
+  },
+  "content": null,
+  "summary": {
+    "arxiv_id": "test-result-001",
+    "summary": "总结内容",
+    "key_points": [
+      "点1",
+      "点2"
+    ],
+    "limitations": [
+      "限制1"
+    ]
+  },
+  "review": {
+    "arxiv_id": "test-result-001",
+    "strengths": [
+      "优点1"
+    ],
+    "weaknesses": [
+      "缺点1"
+    ],
+    "score": 8.5,
+    "verdict": "accept"
+  }
+}
