@@ -1,0 +1,448 @@
+ViT-Explainer: An Interactive Walkthrough
+of the Vision Transformer Pipeline
+Juan Manuel Hernandez1, Mariana Fernández-Espinosa2,
+Denis Parra1, Diego Gómez-Zará2
+1Pontificia Universidad Católica de Chile, 2University of Notre Dame
+Abstract
+Transformer-based architectures have become
+the shared backbone of natural language pro-
+cessing and computer vision. However, un-
+derstanding how these models operate remains
+challenging, particularly in vision settings,
+where images are processed as sequences of
+patch tokens. Existing interpretability tools
+often focus on isolated components or expert-
+oriented analysis, leaving a gap in guided,
+end-to-end understanding of the full inference
+pipeline. To bridge this gap, we present ViT-
+Explainer, a web-based interactive system that
+provides an integrated visualization of Vision
+Transformer inference, from patch tokenization
+to final classification. The system combines ani-
+mated walkthroughs, patch-level attention over-
+lays, and a vision-adapted Logit Lens within
+both guided and free exploration modes. A
+user study with six participants suggests that
+ViT-Explainer is easy to learn and use, helping
+users interpret and understand Vision Trans-
+former behavior.
+1
+Introduction
+Transformer-based models dominate both natural
+language processing and computer vision (Vaswani
+et al., 2017; Dosovitskiy et al., 2020), yet their
+internal decision-making processes remain diffi-
+cult to interpret. As these models are increasingly
+adopted in research, industry, and educational con-
+texts, the lack of accessible interpretability tools
+limits broader understanding and effective use of
+these systems (Zhang et al., 2021; Linardatos et al.,
+2021; Teng et al., 2022). Prior work shows that
+interpretability influences user trust, transparency,
+and adoption in real-world applications (Ali et al.,
+2023).
+While substantial research has examined atten-
+tion heads, residual streams, feed-forward layers,
+and layer-wise prediction dynamics (Clark et al.,
+2019; Elhage et al., 2021; Geva et al., 2021; Bel-
+rose et al., 2023), it remains difficult to understand
+how these components operate collectively across
+the full inference pipeline, especially when trac-
+ing how intermediate representations evolve and
+culminate in a final prediction.
+Interpretability is especially difficult in Vision
+Transformers (ViTs) (Dosovitskiy et al., 2020),
+which transform images into patch tokens and pro-
+cess them through stacked Transformer encoders.
+Existing tools either focus on isolated components,
+provide expert-oriented analytical dashboards, or
+target NLP-based Transformers (Vig, 2019; Wang
+et al., 2021; Li et al., 2023; Ma et al., 2023; Zhou
+et al., 2023). However, none of these tools of-
+fers a guided, end-to-end walkthrough connect-
+ing image tokenization, attention dynamics, and
+final classification within a unified interactive en-
+vironment. Moreover, visualizing ViTs poses chal-
+lenges absent in text settings, since attention must
+be mapped onto 2D image regions rather than se-
+quential tokens, and intermediate Logit Lens pre-
+dictions are decoded into class labels rather than
+readable words.
+To address this gap,
+we introduce ViT-
+Explainer, a web-based interactive system that
+visualizes the complete Vision Transformer infer-
+ence pipeline. The system enables users to up-
+load images, inspect patch tokenization and embed-
+ding formation, explore spatial attention overlays
+across heads and layers, and trace how class predic-
+tions evolve through a vision-adapted Logit Lens
+(Belrose et al., 2023). The interface combines a
+structured guided walkthrough with a free explo-
+ration mode. ViT-Explainer is designed to support
+students learning Vision Transformers, educators
+teaching model internals, and researchers seeking
+intuitive inspection tools.
+We evaluate ViT-Explainer through a prelimi-
+nary user study with six participants, which indi-
+cates that the system is usable and associated with
+low perceived cognitive workload. Participants
+highlighted the usefulness of the patch-level atten-
+arXiv:2604.02182v1  [cs.CV]  2 Apr 2026
+
+tion visualizations and the explicit breakdown of
+Multi-Head Self-Attention. Spatial overlays helped
+them understand how individual patches distribute
+attention across the image, while the step-by-step
+decomposition of Queries, Keys, and Values (Q,
+K, V) projections clarified how parallel attention
+heads operate within each Transformer block.
+In summary, our contributions are: (1) an inter-
+active, end-to-end visualization of Vision Trans-
+former inference that integrates patch-level atten-
+tion overlays and a vision-adapted logit lens; and
+(2) a user evaluation demonstrating high usability
+and low cognitive workload.
+ViT-Explainer aligns with the ACL 2026 focus
+on Explainability of NLP Models by extending in-
+teractive interpretability techniques to Vision Trans-
+formers and adapting Logit Lens (Belrose et al.,
+2023) analysis to the image classification setting.
+Beyond model inspection, the system also serves
+as an educational tool, supporting structured learn-
+ing of Transformer internals through guided walk-
+throughs and interactive exploration. A live demo
+is available at https://vit-explainer.vercel.
+app/, and a video walkthrough can be found at
+https://youtu.be/vy4beZQo89w.
+2
+Related Work
+2.1
+Interactive Visualization for Deep
+Learning.
+Interactive visualization has long been used to
+make neural networks more accessible, from early
+explorations of multilayer perceptrons to systems
+such as CNN Explainer (Wang et al., 2020), which
+visualizes convolutional architectures through in-
+tegrated, multi-level views. More recently, tools
+such as Transformer Explainer (Cho et al., 2025)
+and TransforLearn (Gao et al., 2023) have provided
+interactive walkthroughs of language-based Trans-
+former models. Building on this tradition, we ex-
+tend interactive visualization to Vision Transform-
+ers. Unlike prior systems that focus on language-
+based Transformers or convolutional architectures,
+ViT-Explainer provides an integrated, end-to-end
+walkthrough of the full Vision Transformer infer-
+ence process, explicitly connecting spatial patch
+representations with Transformer internals and fi-
+nal predictions.
+2.2
+Transformer Interpretability.
+Attention visualization has been central to Trans-
+former interpretability since Vaswani et al. (2017).
+Tools such as BertViz (Vig, 2019) and Dodrio
+(Wang et al., 2021) enable interactive exploration
+of attention heads, while AttentionViz (Yeh et al.,
+2023) provides global views of query–key interac-
+tions. Complementing attention-based analysis, the
+logit lens technique reveals how predictions evolve
+across layers (Belrose et al., 2023). While these
+systems support fine-grained inspection of individ-
+ual components, they primarily facilitate analytical
+probing rather than a structured understanding of
+how computations unfold across the full model.
+ViT-Explainer extends these component-level inter-
+pretability techniques to the vision setting within
+an integrated, end-to-end walkthrough.
+2.3
+Vision Transformer Analysis.
+Several systems have explored expert-oriented anal-
+ysis of Vision Transformers. Li et al. (2023) iden-
+tify important attention heads through pruning met-
+rics, Ma et al. (2023) examine patch interactions
+across layers, and EL-VIT (Zhou et al., 2023) pro-
+vides a multi-layer analytics framework. Related
+work has also extended interpretability to multi-
+modal and attribution settings, including cross-
+modal attention visualization (Aflalo et al., 2022)
+and customizable feature attributions (Boyle et al.,
+2025). While these systems provide detailed ana-
+lytical capabilities for expert inspection, they prior-
+itize fine-grained analysis over guided conceptual
+understanding of the full ViT inference process. In
+contrast, ViT-Explainer provides a complete, step-
+by-step walkthrough of the ViT pipeline designed
+to help users learn and analyze ViTs, integrating
+spatial attention overlays and layer-wise prediction
+tracing within a single interface.
+3
+System Description
+ViT-Explainer is a web-based interactive visualiza-
+tion system designed to explain the Vision Trans-
+former inference pipeline. It integrates model infer-
+ence, intermediate representation extraction, and
+interactive visualizations within a unified browser
+interface. In this section, we describe the system
+architecture and the visualization pipeline.
+3.1
+System Architecture
+ViT-Explainer follows a client–server architecture.
+The frontend (Figure 1) is implemented in Svelte1
+and JavaScript, and deployed on Vercel2. It ren-
+1https://svelte.dev/
+2https://vercel.com/
+
+Figure 1: ViT-Explainer interface. Top: The input image is divided into non-overlapping patches, decomposed into
+RGB channels, flattened into vectors, and projected into an embedding space via a learned linear transformation.
+Bottom: A Transformer encoder block is visualized step by step, including layer normalization, Multi-Head
+Self-Attention, residual connections, and the MLP sublayer. The classification head produces logits from the class
+token, and users can navigate the processing stages through guided controls (top-left).
+ders the interactive visualization pipeline entirely
+in the browser using SVG-based components and
+reactive state management. The interface supports
+both a guided, step-by-step walkthrough and a free
+exploration mode, enabling users to interact with
+internal representations at their own pace.
+The
+backend
+is
+implemented
+in
+Python
+using PyTorch and the timm library3,
+and
+is deployed on Hugging Face Spaces.
+We
+use
+a
+pretrained
+FlexiViT-Large
+model
+flexivit_large.300ep_in1k,
+adapted
+to
+a
+3 × 3 patch grid (96×96 input resolution with
+32×32 patches).
+The model comprises 24
+Transformer encoder layers with Multi-Head
+Self-Attention (16 heads per layer) and a hidden
+dimension of 1024.
+We use a 3 × 3 patch configuration as a peda-
+gogical choice for interpretability. With 9 patches
+plus the CLS token, the resulting 10 × 10 attention
+matrices can be displayed in full without scrolling
+or aggregation, allowing users to inspect every in-
+3https://huggingface.co/docs/timm/en/index
+dividual attention weight. Standard configurations
+(e.g., 14 × 14 patches) would produce larger ma-
+trices that cannot be easily visualized at element
+level in a browser interface.
+Upon image upload, the backend performs a for-
+ward pass and extracts intermediate representations,
+including attention weights for all heads and layers,
+final logits, and softmax probabilities. To support
+the Logit Lens visualization, we apply the classifi-
+cation head to the class token at each layer, produc-
+ing a trajectory of prediction distributions across
+network depth. These intermediate tensors are re-
+turned to the frontend for interactive rendering.
+The frontend presents the ViT pipeline as a
+sequence of coordinated, animated views.
+In
+guided mode, users navigate through a structured
+walkthrough with forward and backward controls,
+where each step highlights a specific processing
+stage and provides contextual explanations. In
+free exploration mode, users can directly interact
+with patches, attention heads, layers, and predic-
+tion trajectories without the step-based constraints.
+The visual design follows Shneiderman’s (2003)
+
+Figure 2: Multi-Head Self-Attention: ViT-Explainer
+animates the full attention computation to show how
+each head redistributes token information.
+information-seeking mantra: overview first, zoom
+and filter, and then details on demand.
+3.2
+Visualization Pipeline
+ViT-Explainer decomposes the Vision Transformer
+into coordinated interactive stages that progres-
+sively reveal the internal processing pipeline.
+3.2.1
+Image Patching and Tokenization.
+The input image is divided into non-overlapping
+patches with an overlaid grid. Patch extraction and
+RGB decomposition are animated to show how
+pixels are flattened into vectors. For illustrative
+purposes, the guided mode begins with a simplified
+3×3 grid before transitioning to the model’s actual
+resolution.
+3.2.2
+Linear Projection and Positional
+Encoding.
+Flattened patch vectors are projected into an embed-
+ding space via a learned weight matrix, visualized
+as matrix multiplication. Positional embeddings
+are added through animated element-wise addition,
+and a CLS token is prepended as a dedicated aggre-
+gation vector.
+3.2.3
+Transformer Block Internals.
+Each encoder block is visualized as a sequence
+of animated transformations, including Layer Nor-
+malization, Multi-Head Self-Attention (Figure 2),
+residual connections, and the MLP sublayer. Q, K,
+and V projections are rendered explicitly, followed
+by the dot-product interaction (QK⊤), scaling, and
+softmax normalization. The transition from simi-
+larity scores to attention weights is animated row
+by row, highlighting how each token distributes
+attention across the sequence.
+Attention weights are displayed both as matri-
+ces and as overlays aligned with the image patches.
+Users can hover to inspect a token’s attention distri-
+bution (Figure 3), switch between heads to compare
+learned patterns, and navigate layers to observe
+Figure 3: Attention Mapping: Visualizes how much
+attention a selected patch (or the [CLS] token) pays to
+other patches.
+Figure 4: Logit-Lens: Layer-by-layer logit chart (col-
+ored curves for the top predicted classes) and a side
+panel to select and reshuffle classes for comparison.
+how spatial relationships evolve with depth. Resid-
+ual additions and the two-stage MLP (W1, GELU,
+W2) are shown as explicit vector transformations.
+3.2.4
+Classification and Logit Lens.
+After the final layer, the CLS token is passed
+through the classification head to produce logits
+and softmax probabilities. A logit lens view (Fig-
+ure 4) applies the same head at every intermediate
+layer, visualizing how class scores evolve across
+depth and revealing the progressive sharpening of
+the model’s prediction (Belrose et al., 2023).
+3.2.5
+Interaction Modes.
+ViT-Explainer supports a guided walkthrough with
+synchronized explanations and animations, and a
+free exploration mode that allows direct interaction
+with heads, layers, and internal representations.
+4
+User Evaluation
+To assess the usability and perceived effectiveness
+of ViT-Explainer, we conducted a user study with
+six participants.
+4.1
+Participants and Procedure
+We recruited six participants (3 graduate and 3 un-
+dergraduate students from a Computer Science de-
+partment) with varying familiarity with deep learn-
+
+ing: beginner (N=1; limited or no prior exposure
+to Transformers) and knowledgeable (N=5; prior
+coursework or professional experience).
+The study consisted of three phases: (1) a pre-
+study questionnaire (∼5 minutes) assessing self-
+reported familiarity with Transformer concepts;
+(2) a guided exploration session (∼20 minutes) in
+which participants walked through the complete
+ViT pipeline using a provided image, followed
+by free exploration with their own uploaded im-
+ages; and (3) a post-study questionnaire and semi-
+structured interview (∼10 minutes), including us-
+ability ratings based on the System Usability Scale
+(SUS) (Brooke et al., 1996) and the NASA Task
+Load Index (NASA-TLX) (Hart and Staveland,
+1988), as well as open-ended feedback.
+4.2
+Results
+Usability.
+Participants reported low overall work-
+load on the 1–7 NASA-TLX scale (M = 2.22) and
+high perceived performance (M = 6.33), suggesting
+that the system imposed limited cognitive burden
+during exploration. While Mental Demand was
+moderate (M = 4.00), other dimensions—Physical
+Demand (M = 1.33), Temporal Demand (M = 1.83),
+and Frustration (M = 1.17)—remained low, further
+indicating that interaction with the system was not
+cognitively taxing.
+Consistent with these findings, perceived usabil-
+ity was high, with a mean SUS score of 90.42 (SD
+= 4.85). All participants scored above 85, reflecting
+a consistently positive and accessible user experi-
+ence across varying levels of prior familiarity with
+Transformers.
+Qualitative Feedback.
+We conducted a thematic
+analysis (Clarke and Braun, 2017) of the open-
+ended responses to identify perceived benefits and
+challenges of ViT-Explainer. Participants reported
+that ViT-Explainer was particularly helpful for un-
+derstanding the attention mechanism at the patch
+level (N=5). Several noted that the interactive vi-
+sualizations clarified aspects of Multi-Head Self-
+Attention that had remained abstract when learning
+from text-based resources alone. For example, P5
+stated that the tool helped them “see how atten-
+tion heads actually distribute focus across patches,”
+making the computation more intuitive.
+Participants appreciated the ability to inspect
+individual vectors and trace how representations
+propagate through successive stages of the archi-
+tecture, connecting low-level embeddings to high-
+level predictions. As P3 noted, the system made
+abstract concepts “concrete and tangible,” and the
+animated transitions helped them “build a mental
+model of the data flow.”
+Several participants noted that the step-by-step
+structure helped them understand how individual
+operations fit into the broader pipeline, rather than
+viewing patching, attention, and classification as
+isolated modules (N=4). As P2 explained, “Seeing
+each stage unfold step by step helped me under-
+stand how patching, attention, and classification
+connect to each other. Before, I thought of them
+as separate pieces, but the walkthrough made it
+clear how the output of one stage directly shapes
+the next.”
+Participants also highlighted the Logit Lens view
+as particularly insightful for understanding how
+predictions evolve across layers. Several noted that
+observing the gradual stabilization of class logits
+helped them see how intermediate representations
+progressively encode semantic information, rather
+than assuming that meaningful prediction emerges
+only at the final layer (N=3). As P1 explained,
+“Seeing the prediction evolve layer by layer made
+the depth make sense.”
+Despite the overall positive reception, partic-
+ipants identified usability issues.
+In particular,
+the interactive affordances were not always imme-
+diately apparent. Some users reported difficulty
+distinguishing interactive from non-interactive re-
+gions, leading to trial-and-error navigation. As P4
+noted, “I wasn’t always sure what was clickable
+and what wasn’t, so I had to try a few things before
+figuring it out.” This suggests a need for clearer
+visual cues (e.g., hover highlights or explicit UI
+indicators) to better guide user interaction.
+5
+Limitations
+As discussed in §3.1, ViT-Explainer uses a pre-
+trained FlexiViT-Large model adapted to a reduced
+3 × 3 patch configuration for illustrative purposes.
+This trade-off reduces spatial granularity compared
+to standard ViT settings (e.g., 14×14 patches), and
+the model may correctly identify coarse semantic
+categories (e.g., “dog”) but occasionally misclas-
+sify fine-grained distinctions (e.g., specific breeds).
+Attention dynamics at this resolution may also dif-
+fer qualitatively from those in standard configura-
+tions, and future work should evaluate whether the
+patterns observed generalize to higher-resolution
+settings.

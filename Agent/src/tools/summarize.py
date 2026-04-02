@@ -14,12 +14,12 @@ from config import Settings, load_config
 from src.schemas import PaperAnalysis, PaperSummary
 
 
-DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 TEXT_LIMIT = 12000
 
 
 class SummarizeError(RuntimeError):
-    """模型总结异常。"""
+    """总结生成失败。"""
 
 
 def summarize_paper(
@@ -66,14 +66,14 @@ def summarize_paper(
 
 @tool("summarize_paper")
 def summarize_paper_tool(title: str, abstract: str, paper_text: str) -> dict[str, Any]:
-    """生成论文总结和分析结果。"""
+    """生成论文总结和分析。"""
     return summarize_paper(title=title, abstract=abstract, paper_text=paper_text)
 
 
 def _build_llm(settings: Settings) -> ChatOpenAI:
     base_url = settings.openai_base_url
     if not base_url and "deepseek" in settings.model_name.lower():
-        base_url = DEEPSEEK_DEFAULT_BASE_URL
+        base_url = DEEPSEEK_BASE_URL
 
     kwargs: dict[str, Any] = {
         "api_key": settings.openai_api_key,
@@ -84,7 +84,6 @@ def _build_llm(settings: Settings) -> ChatOpenAI:
     }
     if base_url:
         kwargs["base_url"] = base_url
-
     return ChatOpenAI(**kwargs)
 
 
@@ -108,7 +107,7 @@ def _call_model(
     payload = (
         f"title:\n{title}\n\n"
         f"abstract:\n{abstract or '论文未提供摘要'}\n\n"
-        f"content:\n{paper_text or '正文为空，请仅基于摘要谨慎作答。'}"
+        f"content:\n{paper_text or '正文为空，请仅基于摘要作答。'}"
     )
 
     try:
@@ -123,26 +122,27 @@ def _stringify_response(response: Any) -> str:
     content = getattr(response, "content", response)
     if isinstance(content, str):
         return content.strip()
+
     if isinstance(content, list):
-        parts: list[str] = []
+        lines: list[str] = []
         for item in content:
             if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict) and item.get("text"):
-                parts.append(str(item["text"]))
+                lines.append(item)
+                continue
+            if isinstance(item, dict):
+                text = item.get("text")
             else:
                 text = getattr(item, "text", None)
-                if text:
-                    parts.append(str(text))
-        return "\n".join(parts).strip()
+            if text:
+                lines.append(str(text))
+        return "\n".join(lines).strip()
+
     return str(content).strip()
 
 
 def _trim_text(text: str, limit: int = TEXT_LIMIT) -> str:
     text = text.strip()
-    if len(text) <= limit:
-        return text
-    return text[:limit]
+    return text if len(text) <= limit else text[:limit]
 
 
 def _parse_summary(raw_text: str) -> dict[str, Any]:
@@ -150,8 +150,7 @@ def _parse_summary(raw_text: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         data = {}
 
-    summary = PaperSummary()
-    payload = summary.model_dump()
+    payload = PaperSummary().model_dump()
     payload["problem"] = _text(data.get("problem"), payload["problem"])
     payload["background"] = _text(data.get("background"), payload["background"])
     payload["method"] = _text(data.get("method"), payload["method"])
@@ -168,20 +167,13 @@ def _parse_analysis(raw_text: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         data = {}
 
-    analysis = PaperAnalysis()
-    payload = analysis.model_dump()
+    payload = PaperAnalysis().model_dump()
     payload["research_value"] = _text(data.get("research_value"), payload["research_value"])
 
     method = data.get("method_analysis", {})
     if isinstance(method, dict):
-        payload["method_analysis"]["strength"] = _text(
-            method.get("strength"),
-            payload["method_analysis"]["strength"],
-        )
-        payload["method_analysis"]["weakness"] = _text(
-            method.get("weakness"),
-            payload["method_analysis"]["weakness"],
-        )
+        payload["method_analysis"]["strength"] = _text(method.get("strength"), payload["method_analysis"]["strength"])
+        payload["method_analysis"]["weakness"] = _text(method.get("weakness"), payload["method_analysis"]["weakness"])
         payload["method_analysis"]["technical_rationality"] = _text(
             method.get("technical_rationality"),
             payload["method_analysis"]["technical_rationality"],
@@ -224,27 +216,27 @@ def _extract_json(raw_text: str) -> Any:
     if not text:
         return {}
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
-    if match:
+    for candidate in (text, _extract_fenced_json(text), _extract_braced_json(text)):
+        if not candidate:
+            continue
         try:
-            return json.loads(match.group(1))
+            return json.loads(candidate)
         except json.JSONDecodeError:
-            pass
+            continue
+    return {}
 
+
+def _extract_fenced_json(text: str) -> str:
+    match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+    return match.group(1) if match else ""
+
+
+def _extract_braced_json(text: str) -> str:
     start = text.find("{")
     end = text.rfind("}")
-    if start != -1 and end > start:
-        try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            pass
-
-    return {}
+    if start == -1 or end <= start:
+        return ""
+    return text[start : end + 1]
 
 
 def _text(value: Any, default: str) -> str:

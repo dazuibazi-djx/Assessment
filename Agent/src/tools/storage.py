@@ -52,7 +52,6 @@ def build_result_path(arxiv_id: str, settings: Settings) -> Path:
 
 
 def save_metadata(paper: PaperMetadata | dict[str, Any], settings: Settings) -> Path:
-    """保存论文元数据到 `data/meta/`。"""
     ensure_storage_dirs(settings)
     metadata = _coerce_metadata(paper)
     target_path = build_meta_path(metadata.arxiv_id, settings)
@@ -61,7 +60,6 @@ def save_metadata(paper: PaperMetadata | dict[str, Any], settings: Settings) -> 
 
 
 def save_parsed_text(arxiv_id: str, parsed_text: str, settings: Settings) -> Path:
-    """保存解析后的正文文本。"""
     ensure_storage_dirs(settings)
     target_path = build_parsed_path(arxiv_id, settings)
     try:
@@ -96,11 +94,6 @@ def save_result_tool(result: dict[str, Any]) -> str:
 
 
 def _coerce_metadata(paper: PaperMetadata | dict[str, Any]) -> PaperMetadata:
-    """把输入统一转换成 `PaperMetadata`。
-
-    这样做的好处是，外部既可以直接传模型对象，
-    也可以传普通字典，存储层内部统一处理。
-    """
     try:
         if isinstance(paper, PaperMetadata):
             return paper

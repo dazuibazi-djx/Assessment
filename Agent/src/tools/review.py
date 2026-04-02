@@ -1,4 +1,4 @@
-"""论文审稿式评价。"""
+"""论文审稿评价。"""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ from config import Settings, load_config
 from src.schemas import PaperReview
 
 
-DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 TEXT_LIMIT = 12000
 
 
 class ReviewError(RuntimeError):
-    """审稿生成异常。"""
+    """审稿结果生成失败。"""
 
 
 def review_paper(
@@ -38,14 +38,10 @@ def review_paper(
     if not abstract and not paper_text:
         raise ValueError("abstract 和 paper_text 不能同时为空。")
 
-    llm = _build_llm(settings)
-    system_prompt = _read_prompt("system_prompt.txt", required=False)
-    review_prompt = _read_prompt("review_prompt.txt", required=True)
-
     raw_text = _call_model(
-        llm=llm,
-        system_prompt=system_prompt,
-        review_prompt=review_prompt,
+        llm=_build_llm(settings),
+        system_prompt=_read_prompt("system_prompt.txt", required=False),
+        review_prompt=_read_prompt("review_prompt.txt", required=True),
         title=title,
         abstract=abstract,
         paper_text=paper_text,
@@ -62,7 +58,7 @@ def review_paper_tool(title: str, abstract: str, paper_text: str) -> dict[str, A
 def _build_llm(settings: Settings) -> ChatOpenAI:
     base_url = settings.openai_base_url
     if not base_url and "deepseek" in settings.model_name.lower():
-        base_url = DEEPSEEK_DEFAULT_BASE_URL
+        base_url = DEEPSEEK_BASE_URL
 
     kwargs: dict[str, Any] = {
         "api_key": settings.openai_api_key,
@@ -73,7 +69,6 @@ def _build_llm(settings: Settings) -> ChatOpenAI:
     }
     if base_url:
         kwargs["base_url"] = base_url
-
     return ChatOpenAI(**kwargs)
 
 
@@ -114,26 +109,27 @@ def _stringify_response(response: Any) -> str:
     content = getattr(response, "content", response)
     if isinstance(content, str):
         return content.strip()
+
     if isinstance(content, list):
-        parts: list[str] = []
+        lines: list[str] = []
         for item in content:
             if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict) and item.get("text"):
-                parts.append(str(item["text"]))
+                lines.append(item)
+                continue
+            if isinstance(item, dict):
+                text = item.get("text")
             else:
                 text = getattr(item, "text", None)
-                if text:
-                    parts.append(str(text))
-        return "\n".join(parts).strip()
+            if text:
+                lines.append(str(text))
+        return "\n".join(lines).strip()
+
     return str(content).strip()
 
 
 def _trim_text(text: str, limit: int = TEXT_LIMIT) -> str:
     text = text.strip()
-    if len(text) <= limit:
-        return text
-    return text[:limit]
+    return text if len(text) <= limit else text[:limit]
 
 
 def _parse_review(raw_text: str) -> dict[str, Any]:
@@ -141,9 +137,7 @@ def _parse_review(raw_text: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         data = {}
 
-    review = PaperReview()
-    payload = review.model_dump()
-
+    payload = PaperReview().model_dump()
     payload["summary"] = _text(data.get("summary"), payload["summary"])
     payload["strengths"] = _text_list(data.get("strengths"))
     payload["weaknesses"] = _text_list(data.get("weaknesses"))
@@ -172,27 +166,27 @@ def _extract_json(raw_text: str) -> Any:
     if not text:
         return {}
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
-    if match:
+    for candidate in (text, _extract_fenced_json(text), _extract_braced_json(text)):
+        if not candidate:
+            continue
         try:
-            return json.loads(match.group(1))
+            return json.loads(candidate)
         except json.JSONDecodeError:
-            pass
+            continue
+    return {}
 
+
+def _extract_fenced_json(text: str) -> str:
+    match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+    return match.group(1) if match else ""
+
+
+def _extract_braced_json(text: str) -> str:
     start = text.find("{")
     end = text.rfind("}")
-    if start != -1 and end > start:
-        try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            pass
-
-    return {}
+    if start == -1 or end <= start:
+        return ""
+    return text[start : end + 1]
 
 
 def _text(value: Any, default: str) -> str:

@@ -1,0 +1,16 @@
+{
+  "arxiv_id": "2604.02182v1",
+  "title": "ViT-Explainer: An Interactive Walkthrough of the Vision Transformer Pipeline",
+  "authors": [
+    "Juan Manuel Hernandez",
+    "Mariana Fernandez-Espinosa",
+    "Denis Parra",
+    "Diego Gomez-Zara"
+  ],
+  "abstract": "Transformer-based architectures have become the shared backbone of natural language processing and computer vision. However, understanding how these models operate remains challenging, particularly in vision settings, where images are processed as sequences of patch tokens. Existing interpretability tools often focus on isolated components or expert-oriented analysis, leaving a gap in guided, end-to-end understanding of the full inference pipeline. To bridge this gap, we present ViT-Explainer, a web-based interactive system that provides an integrated visualization of Vision Transformer inference, from patch tokenization to final classification. The system combines animated walkthroughs, patch-level attention overlays, and a vision-adapted Logit Lens within both guided and free exploration modes. A user study with six participants suggests that ViT-Explainer is easy to learn and use, helping users interpret and understand Vision Transformer behavior.",
+  "published": "2026-04-02T15:44:23+00:00",
+  "updated": "2026-04-02T15:44:23+00:00",
+  "pdf_url": "https://arxiv.org/pdf/2604.02182v1",
+  "primary_category": "cs.CV",
+  "source": "arXiv"
+}
