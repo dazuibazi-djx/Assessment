@@ -1,22 +1,13 @@
 {
   "arxiv_id": "2603.30045v1",
-  "title": "OmniRoam: World Wandering via Long-Horizon Panoramic Video Generation",
+  "title": "Gen-Searcher: Reinforcing Agentic Search for Image Generation",
   "authors": [
-    "Yuheng Liu",
-    "Xin Lin",
-    "Xinke Li",
-    "Baihan Yang",
-    "Chen Wang",
-    "Kalyan Sunkavalli",
-    "Yannick Hold-Geoffroy",
-    "Hao Tan",
-    "Kai Zhang",
-    "Xiaohui Xie",
-    "Zifan Shi",
-    "Yiwei Hu"
+    "Kaituo Feng"
   ],
-  "abstract": "Modeling scenes using video generation models has garnered growing research interest in recent years. However, most existing approaches rely on perspective video models that synthesize only limited observations of a scene, leading to issues of completeness and global consistency. We propose OmniRoam, a controllable panoramic video generation framework that exploits the rich per-frame scene coverage and inherent long-term spatial and temporal consistency of panoramic representation, enabling long-horizon scene wandering. Our framework begins with a preview stage, where a trajectory-controlled video generation model creates a quick overview of the scene from a given input image or video. Then, in the refine stage, this video is temporally extended and spatially upsampled to produce long-range, high-resolution videos, thus enabling high-fidelity world wandering. To train our model, we introduce two panoramic video datasets that incorporate both synthetic and real-world captured videos. Experiments show that our framework consistently outperforms state-of-the-art methods in terms of visual quality, controllability, and long-term scene consistency, both qualitatively and quantitatively. We further showcase several extensions of this framework, including real-time video generation and 3D reconstruction. Code is available at https://github.com/yuhengliu02/OmniRoam.",
-  "published": "2026-03-31T17:59:33+00:00",
-  "pdf_url": "https://arxiv.org/pdf/2603.30045v1",
+  "abstract": "This paper studies agentic search for image generation.",
+  "published": "2026-03-31T00:00:00+00:00",
+  "updated": "2026-03-31T00:00:00+00:00",
+  "pdf_url": "https://arxiv.org/pdf/2603.30045v1.pdf",
+  "primary_category": "cs.CV",
   "source": "arXiv"
 }

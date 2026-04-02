@@ -162,3 +162,395 @@ over time [Guo et al. 2024; Long et al. 2024]. While recent autore-
 gressive approaches [Huang et al. 2025; Yin et al. 2025] attempt to
 address this, perspective-based methods remain inherently confined
 to a narrow field-of-view (FoV), limiting their ability to capture
+
+OmniRoam: World Wandering via Long-Horizon Panoramic Video Generation
+•
+3
+holistic scene contexts or maintain global spatial consistency during
+large-scale exploration.
+Panoramic Video Generation. Panoramic vision offers holistic
+geometric cues to overcome the spatial limitations of perspective
+views. Early text-to-panorama frameworks generally fall into two
+categories: distortion-aware approaches, which adapt architectures
+to spherical geometry (e.g., DynamicScaler [Liu et al. 2025], Pan-
+oDiT [Zhang et al. 2025a]), and projection-driven methods that
+utilize multi-view or hybrid relationships for global coherence (e.g.,
+TiP4GEN [Xing et al. 2025], VideoPanda [Xie et al. 2025]). More
+recently, WorldPrompter [Zhang et al. 2025b] leverages panoramic
+generation as an intermediate representation to synthesize globally
+coherent, 3D scenes for Gaussian Splatting reconstruction.
+Camera-controlled Video Diffusion Models. Recent research
+injects explicit camera signals into video backbones to decouple
+dynamics from content, as seen in [Bai et al. 2025; Wang et al. 2024b].
+In the panoramic domain, 360DVD [Wang et al. 2024a] introduces
+spherical motion conditioning. More advanced frameworks, such as
+Matrix-3D [Yang et al. 2025] and CamPVG [Ji et al. 2025], integrate
+trajectory guidance with sphere-aware mechanisms or 3D recon-
+struction to generate explorable worlds. However, these methods
+typically focus on short clips and suffer from long-horizon genera-
+tion due to error accumulation. In contrast, ours employs a global-to-
+local preview-refine framework that exploits panoramic consistency
+to enable high-fidelity, scalable long-term scene wandering.
+3
+OmniRoam: Long Panoramic Video Wander
+OmniRoam is a camera-controlled framework for long-horizon
+panoramic video synthesis based on a global-to-local generation
+strategy. As shown in Figure 2, the framework consists of a preview
+stage (Section 3.1), which generates a mid-resolution panoramic
+video at accelerated playback speed conditioned on an input image
+and a camera trajectory, followed by a refine stage (Section 3.2)
+that produces the final high-quality panoramic video for immersive
+world wandering. We also describe our panoramic data generation
+pipeline (Section 3.3), a novel long-term scene consistency metric
+(Section 3.3). In addition, we present extensions including real-time
+autoregressive preview and 3DGS reconstruction (Section 4.5).
+3.1
+Trajectory-Controlled Video Preview
+The preview stage generates a panoramic video from user-provided
+images or videos and a specified camera trajectory, providing a rapid
+overview of the scene. We build on a pretrained video generation
+model [Wan et al. 2025] and fine-tune it into a panoramic video
+generative model conditioned on visual inputs and explicit trajec-
+tory and motion-dynamics cues. A key innovation is to decompose
+camera motion control into two orthogonal factors: flow, which
+specifies the normalized directions of movement, and scale, which
+governs the global step size.
+Frame-Dimension Video Conditioning. Following ReCamMas-
+ter [Bai et al. 2025], we adopt the frame-dimension conditioning
+strategy to ensure strict visual continuity. Let 𝑉𝑖𝑛∈R𝑓×3×𝐻×𝑊de-
+note the input video or image and𝑉𝑣∈R𝑓×3×𝐻×𝑊denote the target
+video to be generated, where 𝑓is the temporal length. A 3D varia-
+tional autoencoder E𝑣encodes them into latent representations:
+𝑧𝑖𝑛= E𝑣(𝑉𝑖𝑛),
+𝑧𝑣= E𝑣(𝑉𝑣),
+𝑧𝑖𝑛,𝑧𝑣∈R𝑓′×𝑐×ℎ×𝑤
+(1)
+where 𝑓′,𝑐,ℎ,𝑤denote the temporal length, channel dimension,
+and two spatial dimensions in latent space, respectively. Following
+ReCamMaster [Bai et al. 2025] and Wan [Wan et al. 2025], the source
+and target latents are patchified and concatenated along the frame
+dimension.
+Decomposed Trajectory Conditioning. We decompose camera
+trajectory control into two orthogonal components: flow and scale.
+This decomposition enables intuitive speed adjustment for efficient
+scene exploration and provides finer-grained control: scale mod-
+ulates motion globally across all frames, while flow specifies per-
+frame directional information. This separation also simplifies the
+subsequent refine stage, which only requires adjusting a single
+parameter (i.e., scale) without incorporating trajectory vectors. Fur-
+thermore, under two key assumptions—(a) uniform velocity: the
+camera moves at almost constant speed along the trajectory, and
+(b) fixed orientation: the camera orientation remains unchanged
+throughout the sequence, it is straightforward to decompose the tra-
+jectory into flow and scale. These assumptions are enforced during
+data curation, detailed in Section 3.3.
+Scale. The scale 𝑠∈R+ is a global scalar representing the mag-
+nitude of camera displacement per timestep. We introduce it to
+quantify the playback speed and employ a log-space representa-
+tion to handle a wide range of speeds. The scale embedding 𝑧s is
+computed via a projection:
+𝑧s = 𝜙(log(𝑠)),
+(2)
+where 𝜙∈R →R𝑐𝑠is a learnable linear projector with output chan-
+nel size 𝑐𝑠. This embedding is injected globally into the transformer
+blocks, uniformly modulating all temporal tokens.
+Flow. The flow D = {d𝑘}𝑓
+𝑘=1 is a sequence of 𝑓unit vectors
+representing the normalized 3D direction of camera displacement at
+each timestep. Under the velocity decomposition, we have ∥d𝑘∥= 1
+for all𝑘. This directional information is encoded via a zero-initialized
+camera encoder E𝑐:
+𝑧𝑑= E𝑐(D),
+(3)
+where 𝑧𝑑∈R𝑓′×𝑐𝑑is the embedding with channel size 𝑐𝑑, and
+encoder E𝑐is a fully connected layer inserted into each transformer
+block for frame-wise trajectory control.
+Training Objective. Following the rectified flow framework in
+[Wan et al. 2025], the forward process interpolates between data 𝑧𝑣
+and noise 𝜖∼N (0, I) as 𝑧𝑡= 𝑡𝑧𝑣+ (1 −𝑡)𝜖. During training, noise
+is added only to the target latent while keeping the source latent
+𝑧𝑖𝑛clean. We concatenate the source and target latents frame-wise
+along the temporal dimension, where 𝑧𝑖𝑛serves as a conditioning
+signal to ensure strict visual continuity. The loss is computed solely
+on the target portion:
+Lpreview = E𝑡,𝑧0,𝜖∥𝑣Θ([𝑧𝑖𝑛,𝑧𝑡]frame,𝑡, c) −(𝑧𝑣−𝜖)∥2
+2 ,
+(4)
+where 𝑣Θ is the predicted velocity field, [·]framedenotes frame-wise
+concatenation, and c = {𝑧𝑑, ˜𝑧𝑠} denotes the conditioning set includ-
+ing flow embedding and scale embedding with temporal duplication.
+
+4
+•
+Liu et al.
+Image or Video
+Trajectory
+Preview Stage
+Decompose
+d
+Flow
+Scale
+MLP
+Projector
+...
+...
+...
+log
+Copy
+...
+Preview Video
+OmniRoam
+Preview
+Preview Video
+Refine Stage
+...
+Segments
+...
+Refine Video
+...
+...
+...
+...
+...
+...
+...
+...
+Visibility Mask
+...
+P
+Average
+Pooling
+...
+Extensions
+OmniRoam
+Preview
+Self-forcing
+Preview
+Self-forcing
+Real-time Preview
+3DGS
+3D Reconstruction
+OmniRoam
+Refine
+m
+Visibility Mask
+Scale Alignment
+Frame-concat
+Condition
+Condition
+Fig. 2. OmniRoam Pipeline consists of (1) a preview stage that takes an input image/video and a user-specified camera trajectory, and generates an
+accelerated, mid-resolution panoramic video via decomposed trajectory conditioning (flow + scale), and (2) a refine stage that performs scale alignment and
+segment-wise diffusion to produce the final high-resolution long-horizon panoramic video. The framework further supports real-time autoregressive preview
+and downstream 3D reconstruction. Both models in preview and refine stage are finetuned from a pretrained Diffusion Transformers.
+Real
+Synthetic
+Fig. 3. Dataset Visualization. We curate a hybrid training set containing
+real-world handheld panoramic videos captured across diverse scenes (top)
+and synthetic panoramic sequences rendered from 3DGS scenes with syn-
+thesized wide-ranging, physically feasible trajectories (bottom).
+3.2
+Long-horizon Video Refinement
+While the preview stage generates camera-controlled videos at ac-
+celerated speed (i.e., a large scale 𝑠), capturing extended trajectories
+requires temporal expansion and quality enhancement. Due to com-
+putational constraints, directly generating long, high-resolution
+videos in a single pass is infeasible. We introduce a second-stage
+diffusion model that performs segment-wise refinement through
+scale alignment and visibility mask conditioning. The refined 𝑛seg-
+ments are then concatenated to form the final long-horizon video
+𝑉= [𝑉(1),𝑉(2), . . . ,𝑉(𝑛)].
+Scale Alignment and Visibility Mask Conditioning. Given a
+preview video𝑉𝑝∈R𝑓×3×𝐻×𝑊generated at scale𝑠∈[1.1, 8.0] and a
+target scale 𝑠′ (e.g., 𝑠′ = 1.0 for normal playback), we need to expand
+the temporal resolution by a factor of 𝑠/𝑠′. We compute the number
+of segments required as 𝑛=
+ 𝑠
+𝑠′
+
+. For the 𝑖-th segment (𝑖= 1, . . . ,𝑛),
+a refined video sequence 𝑉(𝑖) is synthesized with increased spatial
+and temporal resolution, conditioned on the selected preview frames.
+Specifically, we construct a binary visibility mask m(𝑖) ∈{0, 1}𝑓to
+select which frames from 𝑉𝑝serve as conditioning for generation:
+𝑚(𝑖)
+𝑗
+=
+(
+1
+if 𝑗(𝑖)
+0
+≤𝑗< 𝑗(𝑖)
+0
++ 𝑤,
+0
+otherwise,
+(5)
+where 𝑤= ⌈(𝑓−1)/𝑛⌉is the window size and 𝑗(𝑖)
+0
+= (𝑖−1)𝑤during
+inference. This mask selects corresponding preview frames as sparse
+conditions. During training, we randomly sample 𝑗0 ∼U[0, 𝑓−𝑤]
+for better generalization.
+The preview is encoded as 𝑧𝑝= E𝑣(𝑉𝑝) ∈R𝑓′×𝑐×ℎ×𝑤, and the
+mask is downsampled to m′(𝑖) ∈R𝑓′ via average pooling, as illus-
+trated in Figure 2. The masked latent conditioning is:
+˜𝑧(𝑖)
+𝑝
+= 𝑧𝑝⊙m′(𝑖),
+(6)
+where m′(𝑖) is broadcasted across channel and spatial dimensions.
+Training Objective. We concatenate the target latent𝑧′
+𝑣∈R𝑓′×𝑐×ℎ×𝑤
+at scale 𝑠′ with ˜𝑧(𝑖)
+𝑝
+along the frame dimension. Noise is added only
+to the target portion. The Rectified Flow objective is:
+Lrefine = E𝑡,𝑗0,𝑧(𝑖)
+𝑣,𝜖
+𝑣Φ([ ˜𝑧(𝑖)
+𝑝,𝑧′
+𝑡]frame,𝑡) −(𝑧′
+𝑣−𝜖)
+
+2
+2 ,
+(7)
+where 𝑧′
+𝑡= 𝑡𝑧′
+𝑣+ (1 −𝑡)𝜖, 𝑧′
+𝑣is the target video segment at scale 𝑠′,
+and 𝑣Φ is the velocity field predicted by the refine model.
+
+OmniRoam: World Wandering via Long-Horizon Panoramic Video Generation
+•
+5
+3.3
+New Dataset and Benchmark
+The scale and precision of trajectory-aligned training data are crucial
+for high-fidelity and explorable panoramic video generation. We first
+establish a canonical panoramic coordinate system that decouples
+camera rotation from translation, tailoring the control space to
+spherical geometry. Based on this protocol, we construct a hybrid
+dataset comprising scene-reality data derived from stabilized real-
+world footage and trajectory-precise data synthesized from 3DGS
+scenes with complex path planning (Figure 3). This design helps
+the model learn robust geometric priors from diverse, physically
+feasible motion patterns.
+Canonical Panoramic Coordinate System. In an equirectangular
+projected (ERP) panorama, camera rotation corresponds to cyclic
+pixel shifts rather than geometric occlusion in perspective views.
+We thus design a rotation-invariant coordinate system that differs
+from standard 6-DoF approaches [Yang et al. 2025]. By eliminating
+camera self-rotation (roll, pitch, yaw), we define trajectories strictly
+via translation (𝑥,𝑦,𝑧) relative to the ERP center (𝜙= 0,𝜃= 0). This
+formulation simplifies the generation space, ensuring that visual
+dynamics are driven exclusively by spatial translation relative to
+the anchor.
+Scene-Reality Real Data. We have constructed a large-scale dataset
+comprising approximately 2,000 handheld panoramic videos (5M
+frames) captured across diverse environments, including hotels,
+schools, and outdoor landscapes. Following our rotation-invariant
+protocol, we gravity-align the footage and estimate camera trajecto-
+ries using COLMAP [Schonberger and Frahm 2016]. We then filter
+out videos with abnormal scale to ensure that all data are approxi-
+mately at the same scale. Details are provided in the supplementary
+material.
+Trajectory-Precise Synthetic Data. To construct a large-scale
+dataset with precise geometric supervision, we render 1,000 3D
+Gaussian Splatting (3DGS) scenes from InteriorGS [SpatialVerse
+Research Team 2025] and synthesize physically feasible trajectories
+via an automated pipeline. We define the valid cruising area by
+filtering obstacles within the camera’s vertical range (1.3m–1.5m)
+and generate candidate waypoints to cover 50% of the free space.
+We use a constant-speed trajectory for all frames to keep the scale
+consistent across videos. Details are available in the supplementary
+material.
+Metric for Long-term Scene Consistency. Evaluating long-horizon
+spatial consistency is challenging, as standard metrics (e.g., FVD,
+FID) fail to capture global structural coherence over extended time.
+We therefore propose Loop Consistency (Cloop), which measures
+whether a generated scene returns to its initial view after travers-
+ing a closed-loop camera trajectory. Given a generated sequence
+𝑉= {𝐼𝑖}𝑓
+𝑖=1 following a loop trajectory, we define:
+Cloop = 1 −𝑆2
+1 −𝑆1
+,
+(8)
+𝑆1 = 1
+𝑃2
+𝑃
+∑︁
+𝑞=1
+𝑃
+∑︁
+𝑝=1
+Sim(𝐼𝑝, 𝐼𝑓−𝑞+1),
+(9)
+𝑆2 =
+1
+𝑃(𝑓−2𝑃)
+𝑃
+∑︁
+𝑝=1
+𝑓−𝑃
+∑︁
+𝑞=𝑃+1
+Sim(𝐼𝑝, 𝐼𝑞).
+(10)
+where Sim(·, ·) denotes CLIP embedding cosine similarity. Here, 𝑆1
+(Loop Closure Score) measures visual similarity between the first
+and the last 𝑃frames, while 𝑆2 (Intermediate Score) captures its
+similarity to intermediate frames. A buffer of 𝑃=5 frames improves
+robustness against minor temporal misalignments. This metric re-
+wards generations with high loop closure similarity (𝑆1 →1) while
+maintaining sufficient variation during exploration (𝑆2 →0).
+4
+Experiments
+4.1
+Evaluation Protocols
+We evaluate our method from three aspects: visual quality, trajec-
+tory controllability, and loop consistency. Evaluations are conducted
+at two output resolutions, 480p (Our Preview) and 720p (Our Re-
+fine). We define seven camera trajectories: forward, backward, left,
+right, s-curve, loop, and ground-truth (GT). None of these trajectories
+is directly included during training. For each trajectory and each
+method, we generate 24 videos using the test set. In qualitative visu-
+alizations presented in the paper, the input to the generation model
+is a single panoramic image collected from the Internet, in order
+to demonstrate generalization beyond the training data. Additional
+details are provided in the supplementary material.
+Visual Quality. We assess visual quality using Fréchet Auto-Encoder
+Distance (FAED) [Zhang et al. 2024], Structural Similarity Index
+(SSIM), and LPIPS. FAED extends Fréchet Inception Distance by
+computing distances in an auto-encoder feature space, which re-
+duces sensitivity to distortion artifacts introduced by equirectangu-
+lar projection. For SSIM and LPIPS, we generate videos conditioned
+on GT trajectories and compare the synthesized results to the cor-
+responding ground-truth videos frame-by-frame.
+Trajectory Controllability. Directly comparing camera motion
+across different methods is unfair, as the effective motion scale
+may vary, and extracting camera poses from generated videos us-
+ing structure-from-motion introduces additional noise. To avoid
+these issues, we follow the evaluation protocol of CamPVG [Ji et al.
+2025] and condition all methods on the same GT trajectories. We
+compute the average PSNR over three temporal windows: frames
+20–25 (PSNR’25), 50–55 (PSNR’55), and 70–75 (PSNR’75). For long
+video generation with 641 frames, we additionally report PSNR over
+frames 610–615 (PSNR’615) and 630–635 (PSNR’635). Higher PSNR
+values indicate more accurate adherence to the specified trajectory.
+Loop Consistency. We evaluate loop consistency using the metric
+introduced in Section 3.3. Specifically, we generate videos follow-
+ing loop trajectories and compute loop consistency scores over all
+frames. A higher score indicates that the generated video returns to
+a visual state closer to the initial view after completing a full loop,
+reflecting stronger long-term spatial coherence.
+4.2
+Experiment Settings
+Model Training. We train two models for the preview and the
+refinement stages at resolutions of 480 × 960 (480p) and 720 × 1440
+(720p), respectively. Both models are finetuned on Wan2.1-1.3B [Wan
+et al. 2025]. The preview model generates 81-frame videos and
+supports panoramic images or videos, trajectory scale and flow
+as conditions. We first train the model on real data with random
+temporal slicing for 120𝑘steps, using a batch size of 64 and a learning

@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "arxiv_id": "schema-test-001",
+    "title": "Schema Test",
+    "authors": [
+      "Alice"
+    ],
+    "abstract": "摘要",
+    "published": "2026-04-02T00:00:00+00:00",
+    "updated": "2026-04-02T01:00:00+00:00",
+    "pdf_url": "https://arxiv.org/pdf/schema-test-001.pdf",
+    "primary_category": "cs.AI",
+    "source": "arXiv"
+  },
+  "content": null,
+  "summary": {
+    "problem": "问题",
+    "background": "文中未明确说明",
+    "method": "文中未明确说明",
+    "experiment": "文中未明确说明",
+    "results": "文中未明确说明",
+    "contribution": [],
+    "limitations": [],
+    "keywords": []
+  },
+  "analysis": {
+    "research_value": "文中未明确说明",
+    "method_analysis": {
+      "strength": "文中未明确说明",
+      "weakness": "文中未明确说明",
+      "technical_rationality": "文中未明确说明"
+    },
+    "experiment_analysis": {
+      "adequacy": "文中未明确说明",
+      "missing_parts": [],
+      "fairness": "文中未明确说明"
+    },
+    "result_analysis": {
+      "main_findings": "文中未明确说明",
+      "credibility": "文中未明确说明",
+      "generalization": "文中未明确说明"
+    },
+    "paper_positioning": "文中未明确说明",
+    "overall_analysis": "文中未明确说明"
+  },
+  "review": {
+    "summary": "文中未明确说明",
+    "strengths": [],
+    "weaknesses": [],
+    "score": 7.5,
+    "confidence": 6.0,
+    "recommendation": "weak accept",
+    "novelty_score": 5.0,
+    "technical_quality_score": 5.0,
+    "clarity_score": 5.0,
+    "main_reasons": [],
+    "suggestions": []
+  }
+}
