@@ -74,7 +74,6 @@ def paper_download_tool(arxiv_id: str, pdf_url: str, skip_existing: bool = True)
 
 
 def _resolve_pdf_dir(pdf_dir: str | Path | None) -> Path:
-    """解析 PDF 保存目录。"""
     if pdf_dir is None:
         return load_config().pdf_dir
 

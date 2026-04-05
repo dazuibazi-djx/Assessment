@@ -1,36 +1,62 @@
 # 科研助手 Agent
 
+这个项目是我做的一个课程作业，作用其实挺直接的，就是输入一个关键词，然后去 arXiv 找论文，接着把 PDF 下下来，解析一下正文，再做总结、分析和一个简单的审稿式评价，最后把结果存到本地。
 
-这个项目里的 LangChain 主要做三件事：
-- 注册工具
-- 接收用户输入
-- 按固定流程调用工具
+我这里没有把它做成那种特别复杂的 agent，反正这个题目流程比较固定，所以最后就是按顺序跑：
 
+`search -> download -> parse -> summarize -> analyze -> review -> save`
 
-## 1. 项目主线
+## 环境
 
-核心流程是固定的：
+Python 版本我这边用的是 3.11，正常来说别太低就行。
 
-`search -> download -> parse -> summarize -> review -> save`
+先装依赖：
 
-对应含义如下：
+```bash
+pip install -r requirements.txt
+```
 
-1. `search`
-   从 arXiv 检索论文
-2. `download`
-   下载论文 PDF 到本地
-3. `parse`
-   解析 PDF 文本，并保存解析结果
-4. `summarize`
-   生成结构化总结
-5. `review`
-   生成审稿式评价和评分
-6. `save`
-   保存元数据、总结结果和审稿结果
+项目根目录还要放一个 `.env` 文件，我现在用的是这种写法：
 
-这条流程写死在 `src/pipeline.py` 中，作为项目的主线。
+```env
+OPENAI_API_KEY=你的密钥
+MODEL_NAME=deepseek-reasoner
+OPENAI_BASE_URL=https://api.deepseek.com
 
-## 2. 目录结构
+DATA_DIR=data
+PDF_DIR=data/pdf
+META_DIR=data/meta
+RESULTS_DIR=data/results
+```
+
+这些目录程序会自己建，不用手动创建：
+
+- `data/pdf`
+- `data/meta`
+- `data/parsed`
+- `data/results`
+
+## 怎么跑
+
+最普通的跑法：
+
+```bash
+python main.py --query "vision transformer" --max-results 1
+```
+
+如果本地已经有处理过的论文，不想再跑一遍：
+
+```bash
+python main.py --query "graph neural network" --max-results 3 --skip-existing
+```
+
+如果只是想看看现在注册了哪些工具：
+
+```bash
+python main.py --query "large language model" --max-results 1 --list-tools
+```
+
+## 目录大概就是这样
 
 ```text
 Agent/
@@ -39,22 +65,13 @@ Agent/
 ├─ requirements.txt
 ├─ README.md
 ├─ prompts/
-│  ├─ system_prompt.txt
-│  ├─ summary_prompt.txt
-│  └─ review_prompt.txt
 ├─ data/
-│  ├─ pdf/
-│  ├─ meta/
-│  ├─ parsed/
-│  └─ results/
 ├─ examples/
 └─ src/
-   ├─ __init__.py
    ├─ agent.py
    ├─ pipeline.py
    ├─ schemas.py
    └─ tools/
-      ├─ __init__.py
       ├─ arxiv_search.py
       ├─ paper_download.py
       ├─ pdf_parse.py
@@ -63,249 +80,55 @@ Agent/
       └─ storage.py
 ```
 
-## 3. 每个目录是做什么的
+几个主要文件：
 
-### `src/`
-核心源码目录，负责组织主流程、Agent 封装和数据结构。
+- `main.py` 是命令行入口
+- `config.py` 读配置
+- `src/pipeline.py` 串主流程
+- `src/agent.py` 放 Agent 那层包装
+- `src/tools/` 里面就是各个具体功能
 
-### `src/tools/`
-工具层目录。这里保留 6 个工具模块，每个文件只负责一类功能。
+## 主要功能
 
-### `prompts/`
-提示词模板目录。后续总结和审稿逻辑会从这里读取提示词。
+1. 论文检索  
+用 arXiv 做搜索，返回的结果不是只给标题，而是会整理成统一字段，比如：
 
-### `data/pdf/`
-保存原始论文 PDF。
-
-### `data/meta/`
-保存论文基础元数据，例如：
-
+- `arxiv_id`
 - `title`
 - `authors`
-- `arxiv_id`
 - `abstract`
-等
-### `data/parsed/`
-保存 PDF 解析后的纯文本内容。
+- `published`
+- `updated`
+- `pdf_url`
+- `primary_category`
 
-### `data/results/`
-保存最终处理结果，例如：
+2. PDF 下载  
+根据 `pdf_url` 下载论文，然后存到 `data/pdf/`，文件名直接用 `arxiv_id.pdf`。
 
-- summary
-- review
-- score
+3. PDF 解析  
+把本地 PDF 读出来，默认提取前 5 页文本，解析结果会放到 `data/parsed/`。
 
-### `examples/`
-放示例脚本或样例输入输出，便于展示。
+4. 单篇论文总结  
+这部分会根据标题、摘要和正文生成结构化总结，基本会覆盖研究目标、方法、实验结果和核心贡献。
 
-## 4. 每个文件的作用
+5. 单篇论文分析  
+在总结之外，再补一层分析，主要看论文价值、方法合不合理、实验够不够、结果靠不靠谱，还有局限性这些。
 
-### 根目录文件
+6. 审稿式评价  
+这部分会尽量给出：
 
-#### `main.py`
-项目启动入口。
+- `strengths`
+- `weaknesses`
+- `score`
+- `confidence`
+- `recommendation`
 
-主要职责：
+7. 本地保存  
+结果不会只是打印一下就没了，而是会分别存到：
 
-- 接收命令行参数
-- 加载配置
-- 调用固定流程
-- 输出结果
+- `data/pdf/`
+- `data/meta/`
+- `data/parsed/`
+- `data/results/`
 
-当前支持的展示方式是：
-
-```bash
-python main.py --query "yolo"
-```
-
-#### `config.py`
-配置管理模块。
-
-主要职责：
-
-- 统一管理路径
-- 管理模型名和 API Key
-- 管理超时参数
-
-#### `requirements.txt`
-项目依赖列表，用于环境安装和复现。
-
-#### `README.md`
-项目说明文档，用于介绍结构、流程和模块职责。
-
-### `src/` 中的文件
-
-#### `src/__init__.py`
-将 `src` 声明为 Python 包。
-
-#### `src/pipeline.py`
-固定流程编排模块，是这个项目最重要的文件之一。
-
-主要职责：
-
-- 按顺序执行 `search -> download -> parse -> summarize -> review -> save`
-- 控制整条主线
-- 作为课程题目的完整流程入口
-
-
-#### `src/agent.py`
-轻量 Agent 封装模块。
-
-这里不做复杂的自主规划，而是做一个轻 Agent：
-
-- 接收 query
-- 注册工具
-- 调用固定流程
-- 返回最终结果
-
-也就是说，`agent.py` 更像是对 `pipeline.py` 的 LangChain 包装。
-
-#### `src/schemas.py`
-统一定义数据结构。
-
-当前主要包括：
-
-- `PaperMetadata`
-- `PaperContent`
-- `PaperSummary`
-- `PaperReview`
-- `PaperResult`
-
-这样各模块之间传递数据时更清晰，也更容易维护。
-
-### `src/tools/` 中的文件
-
-#### `src/tools/arxiv_search.py`
-论文检索工具。
-
-作用：
-
-- 根据查询词搜索 arXiv
-- 返回论文列表
-- 输出统一的元数据结构
-
-#### `src/tools/paper_download.py`
-PDF 下载工具。
-
-作用：
-
-- 下载论文 PDF
-- 保存到 `data/pdf/`
-- 使用 `arxiv_id.pdf` 作为文件名
-
-使用 `arxiv_id` 做文件名非常简单，但工程感很强，也方便去重。
-
-#### `src/tools/pdf_parse.py`
-PDF 解析工具。
-
-作用：
-
-- 读取 PDF
-- 提取正文文本
-- 为总结和评审提供输入
-
-#### `src/tools/summarize.py`
-论文总结工具。
-
-作用：
-
-- 根据论文文本生成结构化总结
-- 输出摘要、关键点和局限性
-
-#### `src/tools/review.py`
-论文审稿工具。
-
-作用：
-
-- 输出优点
-- 输出缺点
-- 给出综合评分
-- 生成审稿式结论
-
-体现“总结 + 评价 + 打分”的特点。
-
-#### `src/tools/storage.py`
-本地存储工具。
-
-作用：
-
-- 保存 PDF
-- 保存 meta
-- 保存 parsed 文本
-- 保存 summary 和 review 结果
-- 提供基于 `arxiv_id` 的去重检查
-
-这里的去重逻辑很重要，例如：
-
-```python
-if paper_exists(arxiv_id):
-    skip
-```
-
-这能体现系统的“可复用”能力，而不是每次都重复处理。
-
-
-##5. 当前最重要的功能要求
-
-这个项目要完成三件事：
-
-### 1. 完整流程
-必须有：
-
-- 检索
-- 下载
-- 解析
-- 总结
-- 审稿
-- 保存
-
-### 2. 本地存储
-至少要保存：
-
-- PDF
-- meta
-- summary
-- review
-
-这样才符合“小型论文数据库”的要求。
-
-### 3. 总结 + 审稿评分
-必须有：
-
-- 结构化 summary
-- review
-- 优缺点
-- 分数
-
-这部分是项目最容易拿分的地方。
-
-## 7. 当前开发状态
-
-目前已经完成：
-
-- 工程目录搭建
-- 模块职责划分
-- 固定流程设计
-- 轻 Agent 结构设计
-- `main.py` 参数入口
-- 基于 `arxiv_id` 的文件命名约定
-- `storage.py` 中的基础去重接口和本地保存接口
-
-目前尚未完成：
-
-- 真实 arXiv 检索
-- 真实 PDF 下载
-- PDF 解析实现
-- LLM 总结与审稿实现
-- LangChain 与真实工具结果的完整联动
-
-## 8. 后续开发顺序
-
-1. `src/tools/arxiv_search.py`
-2. `src/tools/paper_download.py`
-3. `src/tools/pdf_parse.py`
-4. `src/tools/summarize.py`
-5. `src/tools/review.py`
-6. `src/pipeline.py`
-7. `src/agent.py`
-
+所以后面还能继续看，也能重复用。

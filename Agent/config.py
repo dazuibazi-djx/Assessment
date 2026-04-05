@@ -1,5 +1,3 @@
-"""项目配置模块。"""
-
 from __future__ import annotations
 
 import os
@@ -10,13 +8,11 @@ from dotenv import load_dotenv
 
 
 class ConfigError(RuntimeError):
-    """配置异常。"""
+    pass
 
 
 @dataclass(slots=True)
 class Settings:
-    """集中管理项目运行时配置。"""
-
     openai_api_key: str
     model_name: str
     openai_base_url: str | None
@@ -28,67 +24,87 @@ class Settings:
 
     @classmethod
     def from_env(cls, env_file: Path | None = None) -> "Settings":
-        """从环境变量和 `.env` 文件中构建配置。"""
-        project_root = Path(__file__).resolve().parent
-        dotenv_path = env_file or (project_root / ".env")
+        # 默认就按当前项目根目录找 .env
+        root = Path(__file__).resolve().parent
+        dotenv_path = env_file or (root / ".env")
         load_dotenv(dotenv_path=dotenv_path, override=False)
 
-        data_dir = _resolve_path(os.getenv("DATA_DIR", "data"), project_root)
-        pdf_dir = _resolve_path(os.getenv("PDF_DIR", str(data_dir / "pdf")), project_root)
-        meta_dir = _resolve_path(os.getenv("META_DIR", str(data_dir / "meta")), project_root)
-        results_dir = _resolve_path(os.getenv("RESULTS_DIR", str(data_dir / "results")), project_root)
+        openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        model_name = os.getenv("MODEL_NAME", "").strip()
+        openai_base_url = os.getenv("OPENAI_BASE_URL", "").strip() or None
+
+        if not openai_api_key:
+            raise ConfigError("缺少配置项 `OPENAI_API_KEY`，请在 .env 中设置。")
+        if not model_name:
+            raise ConfigError("缺少配置项 `MODEL_NAME`，请在 .env 中设置。")
+
+        # 这里故意不拆太细，项目里看着直观点
+        data_raw = os.getenv("DATA_DIR", "data").strip() or "data"
+        if os.path.isabs(data_raw):
+            data_dir = Path(data_raw)
+        else:
+            data_dir = Path(os.path.join(root, data_raw))
+
+        pdf_raw = os.getenv("PDF_DIR", "").strip()
+        if pdf_raw:
+            if os.path.isabs(pdf_raw):
+                pdf_dir = Path(pdf_raw)
+            else:
+                pdf_dir = Path(os.path.join(root, pdf_raw))
+        else:
+            pdf_dir = data_dir / "pdf"
+
+        meta_raw = os.getenv("META_DIR", "").strip()
+        if meta_raw:
+            if os.path.isabs(meta_raw):
+                meta_dir = Path(meta_raw)
+            else:
+                meta_dir = Path(os.path.join(root, meta_raw))
+        else:
+            meta_dir = data_dir / "meta"
+
+        results_raw = os.getenv("RESULTS_DIR", "").strip()
+        if results_raw:
+            if os.path.isabs(results_raw):
+                results_dir = Path(results_raw)
+            else:
+                results_dir = Path(os.path.join(root, results_raw))
+        else:
+            results_dir = data_dir / "results"
+
+        parsed_dir = data_dir / "parsed"
+
+        # resolve 一下，免得后面路径奇奇怪怪
+        try:
+            data_dir = data_dir.resolve(strict=False)
+            pdf_dir = pdf_dir.resolve(strict=False)
+            meta_dir = meta_dir.resolve(strict=False)
+            parsed_dir = parsed_dir.resolve(strict=False)
+            results_dir = results_dir.resolve(strict=False)
+        except OSError as exc:
+            raise ConfigError("路径配置有问题，请检查 DATA_DIR / PDF_DIR / META_DIR / RESULTS_DIR。") from exc
 
         settings = cls(
-            openai_api_key=_read_required_env("OPENAI_API_KEY"),
-            model_name=_read_required_env("MODEL_NAME"),
-            openai_base_url=_read_optional_env("OPENAI_BASE_URL"),
+            openai_api_key=openai_api_key,
+            model_name=model_name,
+            openai_base_url=openai_base_url,
             data_dir=data_dir,
             pdf_dir=pdf_dir,
             meta_dir=meta_dir,
-            parsed_dir=(data_dir / "parsed").resolve(strict=False),
+            parsed_dir=parsed_dir,
             results_dir=results_dir,
         )
         settings.ensure_directories()
         return settings
 
     def ensure_directories(self) -> None:
-        """确保数据目录存在。"""
-        for directory in (self.data_dir, self.pdf_dir, self.meta_dir, self.parsed_dir, self.results_dir):
+        # 这些目录反正都要用到，启动时顺手建掉
+        for path in [self.data_dir, self.pdf_dir, self.meta_dir, self.parsed_dir, self.results_dir]:
             try:
-                directory.mkdir(parents=True, exist_ok=True)
+                os.makedirs(path, exist_ok=True)
             except OSError as exc:
-                raise ConfigError(f"无法创建目录: {directory}") from exc
+                raise ConfigError(f"无法创建目录: {path}") from exc
 
 
 def load_config() -> Settings:
-    """加载项目配置。"""
     return Settings.from_env()
-
-
-def _read_required_env(name: str) -> str:
-    """读取必填环境变量。"""
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise ConfigError(
-            f"缺少必要配置项 `{name}`。"
-            "请在系统环境变量或项目根目录 `.env` 文件中设置该值。"
-        )
-    return value
-
-
-def _read_optional_env(name: str) -> str | None:
-    """读取可选环境变量。"""
-    value = os.getenv(name, "").strip()
-    return value or None
-
-
-def _resolve_path(raw_value: str, project_root: Path) -> Path:
-    """将环境变量中的路径解析为绝对路径。"""
-    candidate = Path(raw_value).expanduser()
-    if not candidate.is_absolute():
-        candidate = project_root / candidate
-
-    try:
-        return candidate.resolve(strict=False)
-    except OSError as exc:
-        raise ConfigError(f"无效的路径配置: {raw_value}") from exc

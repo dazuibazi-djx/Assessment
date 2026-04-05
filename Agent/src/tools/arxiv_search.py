@@ -63,7 +63,7 @@ def search_arxiv(query: str, max_results: int = 5, **_: Any) -> list[dict[str, A
 
     try:
         papers = [_format_result(item) for item in client.results(search)]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  
         raise ArxivSearchError(f"arXiv 检索失败: {exc}") from exc
 
     ranked = _rerank_papers(cleaned_query, papers)
@@ -77,7 +77,7 @@ def arxiv_search_tool(query: str, max_results: int = 5) -> list[dict[str, Any]]:
 
 
 def _candidate_count(max_results: int) -> int:
-    return min(max(max_results * 4, max_results), 20)
+    return min(max_results * 4, 20)
 
 
 def _build_search_query(query: str, tokens: list[str]) -> str:

@@ -23,7 +23,7 @@ def extract_pdf_text(pdf_path: str | Path, pages: int = 5) -> str:
 
     try:
         document = fitz.open(target_path)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc: 
         return f"PDF 解析失败：无法打开文件 -> {exc}"
 
     try:
@@ -43,7 +43,7 @@ def extract_pdf_text(pdf_path: str | Path, pages: int = 5) -> str:
             return f"PDF 解析失败：前 {page_limit} 页没有提取到有效文本 -> {target_path}"
 
         return "\n\n".join(extracted_pages)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc: 
         return f"PDF 解析失败：读取页面内容时出错 -> {exc}"
     finally:
         document.close()

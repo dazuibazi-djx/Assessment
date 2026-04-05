@@ -98,17 +98,16 @@ def _coerce_metadata(paper: PaperMetadata | dict[str, Any]) -> PaperMetadata:
         if isinstance(paper, PaperMetadata):
             return paper
         return PaperMetadata.model_validate(paper)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc: 
         raise StorageError(f"元数据格式不正确，无法保存: {exc}") from exc
 
 
 def _coerce_result(result: PaperResult | dict[str, Any]) -> PaperResult:
-    """把输入统一转换成 `PaperResult`。"""
     try:
         if isinstance(result, PaperResult):
             return result
         return PaperResult.model_validate(result)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc: 
         raise StorageError(f"最终结果格式不正确，无法保存: {exc}") from exc
 
 

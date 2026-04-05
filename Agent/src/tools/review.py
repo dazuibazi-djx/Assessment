@@ -99,7 +99,7 @@ def _call_model(
 
     try:
         response = llm.invoke([("system", prompt), ("human", payload)])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  
         raise ReviewError(f"模型调用失败: {exc}") from exc
 
     return _stringify_response(response)

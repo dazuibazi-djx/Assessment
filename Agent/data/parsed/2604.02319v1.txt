@@ -1,0 +1,346 @@
+Preprint. Under review.
+No Single Best Model for Diversity:
+Learning a Router for Sample Diversity
+Yuhan Liu♠
+Fangyuan Xu♠
+Vishakh Padmakumar♡
+Daphne Ippolito♢
+Eunsol Choi♠
+♠New York University
+♡Stanford University
+♢Carnegie Mellon University
+yl13579@nyu.edu
+Abstract
+When posed with prompts that permit a large number of valid answers,
+comprehensively generating them is the first step towards satisfying a wide
+range of users. In this paper, we study methods to elicit a comprehensive
+set of valid responses. To evaluate this, we introduce diversity coverage,
+a metric that measures the total quality scores assigned to each unique
+answer in the predicted answer set relative to the best possible answer
+set with the same number of answers. Using this metric, we evaluate 18
+LLMs, finding no single model dominates at generating diverse responses
+to a wide range of open-ended prompts. Yet, per each prompt, there
+exists a model that outperforms all other models significantly at generating
+a diverse answer set. Motivated by this finding, we introduce a router
+that predicts the best model for each query. On NB-WildChat, our trained
+router outperforms the single best model baseline (26.3% vs 23.8%). We
+further show generalization to an out-of-domain dataset (NB-Curated) as
+well as different answer-generation prompting strategies. Our work lays
+foundation for studying generating comprehensive answers when we have
+access to a suite of models.
+1
+Introduction
+Various tasks require language models (LMs) to generate diverse high-quality responses.
+These range from creative writing (Padmakumar & He, 2023; Chung et al., 2025), dialogues
+(Lin & Tomlin), code (Wu et al., 2026), math (Wu et al., 2025), scientific discovery (Novikov
+et al., 2025; Gottweis et al., 2025), survey response simulation (Meister et al., 2024) to
+synthetic data generation (Honovich et al., 2022). Evaluation on these tasks thus should
+move beyond the quality of a single output to the diversity and quality of a set of outputs.
+However, existing metrics fall short in quantifying the coverage of open-ended answer space.
+In this work, we introduce diversity coverage, a metric that measures the total quality scores
+assigned to all unique answers in the predicted answer set, relative to the best possible
+answer set with the same number of answers.
+Prior works focused on methods for improving the diversity of generations from a single
+LLM, such as changing the inference hyperparameters (Holtzman et al., 2019; Kambhatla
+et al., 2022; Santurkar et al., 2023; Nguyen et al., 2024) or prompt (Lu et al., 2024b; Zhang
+et al., 2025b). In this paper, we ask the question of whether diversity coverage can be further
+improved by taking advantage of bountiful LMs, each with differing behaviours towards
+the same prompt. We hypothesize that heterogeneous LLMs can be effectively ensembled
+in order to leverage their complementary strengths. Through a pilot study, we identify that
+no single LLM dominates in generating a diverse and high-quality output set, and different
+LLMs excel at answering different open-ended questions (Section 3). If we can pick the
+optimal model for each example, 33.0% diversity coverage can be achieved on NB-WildChat,
+revealing a large gap compared to using the overall best model in the ensemble (23.8%).
+However, determining the optimal model for a question can be challenging, as optimizing
+diversity involves analyzing the joint effect of all sampled answers. Although many previous
+1
+arXiv:2604.02319v1  [cs.CL]  2 Apr 2026
+
+Preprint. Under review.
+• Beyond the Echo Chamber: Orchestrating Varied … 
+• Beyond Echoes: Cultivating Emergent Diversity…
+• Diversifying the Linguistic Output of LLMs … 
+• Elevating Language Cohesion: A Methodology to  …
+Llama 8B (60% div-cov)
+Gemma-12B (23% div-cov)
+A talking mushroom circle / a shimmering ….
+A unicorn/ A dragon / A unicorn … 
+Gemma-12B (30% div-cov)
+Llama 8B (20% div-cov)
+Question: I am working on a paper to improve the output 
+diversity of LLMs. Help me come up with a title. 
+Question: One thing you might ﬁnd in a magical forest
+Frequency (%) of each LLM being the most 
+diverse model on WildChat
+Figure 1: Left: LLMs exhibit different diversity coverage. Right: There is no universal best
+model on NB-WildChat. A model is only considered to be the best model if its diversity scores
+are 5% higher than the second most best candidate. Queries without a model satisfying
+this margin are labeled as “No dominant single models”. On Simple Questions, all models
+perform similarly, resulting in 100% of “No dominant single models”. On NB-WildChat,
+there is no model that consistently dominates all queries.
+works have proposed routing to select the best LLM (Jiang et al., 2023; Zhang et al., 2025a;
+Lu et al., 2024a), candidates are ranked based on a single response to the ground truth.
+This problem becomes exponentially more challenging when comparing answer sets as
+it is expensive to sample and compare multiple outputs for each example. The difficulty
+is further increased for open-ended questions as there are no gold answer sets available.
+Lastly, one might expect that simple heuristics based on model metadata (e.g., family or size)
+could help predict diversity. In fact, we show in Figure 1 that models of different families
+and sizes generate the most diverse outputs for a disjoint set of queries.
+Motivated by this, we propose a simple approach to predict the best model to respond to
+any given query. We train a router that scores the diversity and quality of each candidate
+model in the routing pool and routes to the best LLM to generate the answers. We frame it
+as a classification task and create a training dataset of queries and model scores. Our router
+outperforms top overall baselines on the NB-WildChat and also generalizes to NB-Curated.
+Using the same trained router, we explore further ensembling outputs from two models
+per query, which brings further performance gains. We will release the code and dataset
+publicly. Our key contributions are:
+1. We propose a new metric, diversity coverage, to jointly measure the diversity and quality
+of an answer set to open-ended questions with diverse output space.
+2. Motivated by the finding that no single model excels at generating diverse outputs to
+all queries, we propose to train a router which predicts the best model for generation
+given an input query. We evaluate our method comprehensively on multiple datasets,
+demonstrating competitive performance on both in-domain (NB-WildChat) and out-of-
+domain (NB-Curated) settings.
+3. We further investigate the effect of training data size, prompting strategies as well as
+inference efficiency of using a diversity router. More broadly, our findings highlight
+the potential of multi-LLM systems, where models with complementary strengths are
+combined to produce more diverse and high-quality solutions.
+2
+
+Preprint. Under review.
+Dataset
+#
+Example
+Question
+Possible Valid Answers
+Simple Questions
+(Zhang et al., 2024)
+23
+Output a random
+country in North America.
+United States/ Canada/ Mexico / ...
+NB-Curated1
+(Zhang et al., 2025c)
+92
+Tell me a funny joke.
+Who is Adam and
+why he is optimizing my code? /
+What did a late tomato say to other
+tomatoes? I will ketchup, ...
+NB-WildChat
+(Zhang et al., 2025c)
+1k
+Give me a very simple
+way to remember the
+formula for tangent.
+Tangent = Opposite /Adjacent /
+Draw a unit circle ...
+Infinity-Chat
+(Jiang et al., 2025)
+26k
+Write a story about
+America.
+In the heartland of America there was
+a small town .../
+My decision to go to the United States...
+Table 1: Dataset statistics. Simple Questions has a fixed answer set and all other datasets have
+open-ended answer sets.
+2
+Task Formulation
+Many queries admit multiple valid responses rather than a single correct answer. We
+summarize datasets containing such queries in Table 1. Depending on the number of
+possible answers, we categorize the datasets into two types:
+• Fixed answer set. Each query has a finite ground truth answer set A∗. The predicted
+answer is correct if it belongs to A∗.
+• Open-ended answer set. Queries admit infinitely many valid answers, and listing them
+comprehensively is infeasible. The validity of the predicted answer can be evaluated
+based on quality and assigned a scalar value.
+2.1
+Task definition
+Given a query q and generation budget B (i.e., the number of answers produced by model),
+the task is to derive an answer set A = {a1, . . . , aB} that covers as many distinct and
+high-quality answers as possible. Our task definition assumes two functions:
+• uniq(q, A): Given a query q and an answer set A, it outputs a subset of Ad, consisting of
+distinct answers only (i.e., no two answers in Ad are equivalent to each other). We follow
+prior work (Zhang et al., 2025c) to derive Ad. We iterate over answers in A and greedily
+add a new answer to Ad if the current answer a is not equivalent to any answer already
+in Ad. The equivalence of two answers is determined by exact string match for queries
+with fixed answer set and an equivalence classifier for open-ended question. The process
+is described in Appendix C.
+• quality(q, ai): Given an individual answer ai for query q, it outputs a scalar value repre-
+senting the quality of the answer ai. This can be done through either comparing against
+ground truth answer sets (factual queries) or using a reward model (open-ended queries).
+2.2
+New Evaluation Metric: Diversity Coverage
+Given a predicted set of answers A = {a1, . . . , aB} to query q, we introduce a new metric,
+diversity coverage (div-cov) as follows:
+div-cov(q, A) :=
+1
+max-uniq-sum(q, B)
+∑
+a∈uniq(q,A)
+quality(q, a)
+1The original released dataset has 100 questions. We filter out 4 questions that ask for multiple
+answers (violating our hypothesis) and 4 questions that do not have multiple correct answers.
+3
+
+Preprint. Under review.
+We define max-uniq-sum(q, B) as the maximum score that one can reach by generating an
+answer set of size B where each answer in the set is distinct and achieves maximum quality.
+For questions with a fixed answer set A∗, assuming B ≥|A∗|, this measures the proportion
+of unique ground-truth answers covered by the answer set, equivalent to the coverage rate
+metric proposed by Zhang et al. (2024).
+Prior works measure diversity by the number of unique, valid outputs for questions with
+fixed answer set (Zhang et al., 2024); or via pairwise embedding-based similarity (Zhang
+et al., 2025b; Jiang et al., 2025). Such metric either does not work for questions with open-
+ended answer space, or do not account for the quality of the answers (Zhang et al., 2025b;
+Jiang et al., 2025). Zhang et al. (2025c) proposes a unified metric for quality and diversity
+considering an ordered answer list, which penalizes answers generated later to account for
+user patience. This paper focuses on evaluating the quality and diversity of a set of answers,
+regardless of generation order, making diversity coverage better suited to our purpose.
+3
+A pilot study on ensembling models to maximize diversity coverage
+In this section, we first study whether a strong LLM can dominate other models in diversity
+coverage for a range of questions (Section 3). We found no single model dominates, mo-
+tivating us to explore the upper bound of gains if use a pool of LLMs instead of a single
+LLM (Section 3.2). We compare several ensembling strategies under oracle model selection
+setting. We find that picking the best LLM per question is the most promising, which leads
+us to develop model router in later sections.
+3.1
+No single model is best at diversity coverage for all questions
+Model sets
+We study 18 models from four open-source model families with different pa-
+rameter counts:
+Llama (Llama-3.2-1B, Llama-3.2-3B, Llama-3.1-8B, Llama-3.3-70B),
+Qwen
+(Qwen3-0.6B,
+Qwen3-1.7B,
+Qwen3-4B,
+Qwen3-8B,
+Qwen3-14B,
+Qwen2.5-72B),
+OLMo
+(OLMo-2-0425-1B,
+OLMo-2-1124-7B,
+OLMo-2-1124-13B,
+OLMo-2-0325-32B),
+Gemma(gemma-3-1b, gemma-3-4b, gemma-3-12b, gemma-3-27b).
+Settings
+For each model and query, we sample N answers with a prompt which instructs
+the model to enumerate as many valid answers as possible (see Appendix B for the full
+template). This prompt encourages models to explore the space of possible responses rather
+than produce a single canonical answer.2 We keep the decoding method fixed throughout
+the paper (described in Appendix D). For each query, we define the “dominant” model by
+the following two criteria: (1) the model achieves the highest diversity coverage, and (2) the
+score is at least 5% higher than that of the answer sets generated by any other models.
+Results
+On Simple Questions, we find no dominant model for any query. For NB-WildChat
+queries, this remains true for 30% of queries, and more than 5 models are dominant at least
+on 5% of queries, suggesting optimizing model choices per question can be fruitful. Figure
+1 compares per-model frequency of achieving the best diversity coverage on NB-WildChat.
+3.2
+Oracle experiment: how much does picking the best model(s) per query improve?
+Motivated by the finding that different models can generate diverse outputs for different
+queries, can we ensemble outputs from models to achieve diverse outputs? We assume an
+oracle setting, where we have access to the diversity coverage scores of all LLMs on all
+queries. We compare three strategies to ensemble models with a fixed generation budget B3:
+2Prior work Zhang et al. (2025b) has found that this method elicits more diverse answer set
+compared to sampling multiple single answer. We further compare different prompt templates (e.g.
+generate one or two answers in a single generation) in Appendix H.1, finding that generating all
+answers in a single prompt elicits the most diverse answer set.
+3In our experiments, we fix B to be 50 answers per question if not otherwise stated.
+4
+
+Preprint. Under review.
+• Top overall model. We select the single model with the best average diversity coverage
+per dataset, representing the best possible performance without ensembling. The selected
+top models are respectively: Llama-3.1-8B, Qwen3-14B and OLMo-2-0425-1B.
+• Top two overall models. We select two models with the highest average diversity
+coverage score per the dataset, then ensemble their outputs, generating B/2 answers
+per model. The selected model pairs are respectively: (Llama-3.1-8B, Llama-3.3-70B),
+(Qwen3-14B, Llama-3.1-8B), (OLMo-2-0425-1B, OLMo-2-1124-7B).
+• Top model per query. For each query, we select the model with highest diversity coverage.
+This represents the oracle performance of always choosing the best LLM per given query.
+We also report the performance of randomly choosing a model per query (Random model
+per query) as a baseline method.
+SQ
+Curated
+WildChat
+Top overall model
+96.9%
+47.0%
+23.8%
+Top two overall models
+97.1%
+45.6%
+25.6%
+Random model / query
+92.7%
+37.5%
+18.1%
+Top model / query
+97.9%
+59.6%
+33.0%
+Table 2: Diversity coverage scores for ensembling mul-
+tiple LLMs on Simple Questions (SQ), NB-Curated (Cu-
+rated) and NB-WildChat (WildChat).
+Table 2 shows that query-level
+model selection (Top model per
+query) is consistently the best strat-
+egy among all three datasets. The
+gap increases as questions become
+more open-ended (on NB-Curated
+and NB-WildChat).
+For Simple
+Questions, using one best single
+LLM (Top overall model) can recover
+96.9% of the ground truth targets.
+Open-ended questions, however,
+are more challenging, and choosing the best model per query yields non-trivial gains. This is
+evidenced by results on NB-Curated, where selecting the top model per query (59.6%) yields
+a 27% relative improvement over the second-best baseline (47.0%), and on NB-WildChat
+where the improvement is 29%.
+4
+Learning to ensemble multiple models for diverse outputs
+Oracle routing significantly improves diversity coverage, but it is costly as we need to
+sample and evaluate outputs from all candidate LLMs. This motivates us to train a router to
+predict the most promising model without sampling the entire answer sets from all models.
+4.1
+Router
+Problem setting
+Given a query q and a suite of models M = {m1, m2, · · · mn}, a router
+ranks them, by div-cov(q, Ai) where Ai is the generated answer set from mi for query q for
+some budget B. The oracle model index for q is defined as i∗= arg maxi div-cov(q, A(i)).
+Such index i∗
+j for each query qj consist of the router training data D = {(qj, i∗
+j )}.
+Classification Objectives
+We compare two classification formulation for the router:
+• |M|-way classification: the router is a single classifier rθ : Q →{1, . . . , |M|} which
+predicts the oracle best model index i∗
+j for each query qj. Let rθ(q)i denote the predicted
+probability of selecting model mi, we train the router with cross-entropy loss: Lmulti =
+E(qj,i∗
+j )∼D
+h
+−log rθ(qj)i∗
+j
+i
+.
+• Binary classification: For each LLM mi, we derive a binary training dataset D(i) =
+{(qj, y(i)
+j )} from D, where y(i)
+j
+= 1[i = i∗
+j ] indicates whether mi is the oracle best model
+for query qj. We then train a binary classifier r(i)
+θ
+: Q →[0, 1] to predict this label using
+binary cross-entropy loss. At inference time, the router evaluates all binary classifiers
+{r(i)
+θ (q)}|M|
+i=1 and selects the model with the highest predicted score: arg max|M|
+i=1 r(i)
+θ (q).
+5
